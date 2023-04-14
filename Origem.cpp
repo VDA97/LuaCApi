@@ -133,6 +133,8 @@ int main()
 
 	std::cout << t1.day << std::endl;
 	std::cout << "testeMR" << std::endl;
+	std::cout << "testeMR2" << std::endl;
+
 
 	lua_State* L = luaL_newstate();
 	luaL_openlibs(L);
