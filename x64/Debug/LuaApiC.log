@@ -1,0 +1,21 @@
+﻿  Origem.cpp
+Origem.obj : error LNK2019: símbolo externo não resolvido, lua_close, referenciado na função main
+Origem.obj : error LNK2019: símbolo externo não resolvido, lua_settop, referenciado na função main
+Origem.obj : error LNK2019: símbolo externo não resolvido, lua_isnumber, referenciado na função main
+Origem.obj : error LNK2019: símbolo externo não resolvido, lua_isstring, referenciado na função main
+Origem.obj : error LNK2019: símbolo externo não resolvido, lua_type, referenciado na função main
+Origem.obj : error LNK2019: símbolo externo não resolvido, lua_tonumberx, referenciado na função "int __cdecl lua_HostFunction(struct lua_State *)" (?lua_HostFunction@@YAHPEAUlua_State@@@Z)
+Origem.obj : error LNK2019: símbolo externo não resolvido, lua_tointegerx, referenciado na função main
+Origem.obj : error LNK2019: símbolo externo não resolvido, lua_tolstring, referenciado na função "bool __cdecl CheckLua(struct lua_State *,int)" (?CheckLua@@YA_NPEAUlua_State@@H@Z)
+Origem.obj : error LNK2019: símbolo externo não resolvido, lua_pushnumber, referenciado na função "int __cdecl lua_HostFunction(struct lua_State *)" (?lua_HostFunction@@YAHPEAUlua_State@@@Z)
+Origem.obj : error LNK2019: símbolo externo não resolvido, lua_pushstring, referenciado na função main
+Origem.obj : error LNK2019: símbolo externo não resolvido, lua_pushcclosure, referenciado na função main
+Origem.obj : error LNK2019: símbolo externo não resolvido, lua_getglobal, referenciado na função main
+Origem.obj : error LNK2019: símbolo externo não resolvido, lua_gettable, referenciado na função main
+Origem.obj : error LNK2019: símbolo externo não resolvido, lua_setglobal, referenciado na função main
+Origem.obj : error LNK2019: símbolo externo não resolvido, lua_pcallk, referenciado na função main
+Origem.obj : error LNK2019: símbolo externo não resolvido, luaL_loadfilex, referenciado na função main
+Origem.obj : error LNK2019: símbolo externo não resolvido, luaL_newstate, referenciado na função main
+Origem.obj : error LNK2019: símbolo externo não resolvido, luaL_openlibs, referenciado na função main
+lua542\liblua54.a : warning LNK4272: o tipo de máquina da biblioteca 'x86' está em conflito com o tipo de máquina de destino 'x64'
+C:\Users\ADM\Desktop\LuaApiC\x64\Debug\LuaApiC.exe : fatal error LNK1120: 18 externo não resolvidos
