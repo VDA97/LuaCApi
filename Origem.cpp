@@ -45,6 +45,8 @@
 
 #include <iostream>
 #include <string>
+#define OLC_PGE_APPLICATION
+#include "olcPixelGameEngine-master/olcPixelGameEngine.h"
 
 // include Lua, assumes it is local to this file
 extern "C"
