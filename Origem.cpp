@@ -132,6 +132,7 @@ int main()
 	Time t1;
 
 	std::cout << t1.day << std::endl;
+	std::cout << "testeMR" << std::endl;
 
 	lua_State* L = luaL_newstate();
 	luaL_openlibs(L);
