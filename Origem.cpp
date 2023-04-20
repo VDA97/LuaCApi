@@ -61,8 +61,6 @@ extern "C"
 #pragma comment(lib, "lua542/liblua54.a")
 #endif
 
-
-// Little error checking utility function
 bool CheckLua(lua_State* L, int r)
 {
 	if (r != LUA_OK)
@@ -75,97 +73,369 @@ bool CheckLua(lua_State* L, int r)
 }
 
 
-int lua_HostFunction(lua_State* L) {
-
-	//get the values from lua stack
-	float a = (float)lua_tonumber(L, 1);
-	float b = (float)lua_tonumber(L, 2);
-	std::cout << "[C++] HostFunction(" << a << "," << b << ") called" << std::endl;
-
-	float result = a * b;
-	//push back onto the lua stack the result
-	lua_pushnumber(L, result);
-	//cpp function returns the numbers of arguments that will be passed back to lua
-	return 1;
-}
-
-
-/*
-int lua_HostFunction(lua_State* L)
+class GameWorld : public olc::PixelGameEngine
 {
-	float a = (float)lua_tonumber(L, 1);
-	float b = (float)lua_tonumber(L, 2);
-	std::cout << "[CPP S4] HostFunction(" << a << ", " << b << ") called from Lua" << std::endl;
-	float c = a * b;
-	lua_pushnumber(L, c);
-	return 1;
-}*/
-
-
-//check
-int VerifyLua(lua_State* L, int r) {
-
-	if (r != LUA_OK) {
-		std::string errormsg = lua_tostring(L, -1);
-		std::cout << errormsg << std::endl;
-		return false;
+public:
+	GameWorld()
+	{
+		sAppName = "Lua Automation";
 	}
-	else {
-		return true;
-	}
-}
+	lua_State* script;
+	
+	olc::vi2d vTileSize = { 32,32 };//load graphics
+	olc::Renderable gfx;
 
-// NOTE !!!
-// YOU WILL NEED THE "EmbeddingLua1.lua" FILE FROM GITHUB REPO
+	//the level will be defined as an array of tiles
+	enum class TileType
+	{
+		Empty = 0,
+		Solid
+	};
+	//vector to store the tiles themselves
+	olc::vi2d vLevelSize;
+	std::vector<TileType> vLevel;
 
+	//Dynamic objects
+	struct Dynamic
+	{
+		olc::vf2d pos;
+		olc::vf2d size = { 1,1 };
+		olc::vf2d vel;
 
-int main()
-{
-
-	struct Time {
-		int year = 1997;
-		int day = 12;
-		int month = 02;
-		int hour = 14;
-		int minute = 43;
-		int second = 58;
+		int id = 0;//if of the object
+		bool bDead = false;//flags to tells if the object should be removed from the game or not
 	};
 
-	Time t1;
+	//these Dynamic objecst will be stored in the vector below:
+	std::vector<std::shared_ptr<Dynamic>> vDynamicObjects;
+	//since the player can only control one object at a Time, it will be created another shared_pointer
+	std::shared_ptr<Dynamic> pUnderPlayerControl = nullptr;
 
-	std::cout << t1.day << std::endl;
-	std::cout << "testeMR" << std::endl;
-	std::cout << "testeMR2" << std::endl;
+
+public:
+	bool OnUserCreate() override
+	{
+		gfx.Load("./gfx/actors.png");//load graphic in user create
+	
+		script = luaL_newstate();//define the lua virtual machine
+		luaL_openlibs(script);//give all of the lua libraries to lua virtual machine
+
+		lua_register(script,"_CreateLevel", wrap_CreateLevel);//Register the name of the function and binded it to our C++ class.
+		lua_register(script, "_SetTile", wrap_SetTile);
+		lua_register(script, "_CreateDynamicObject", wrap_createDynamicObject);
+		lua_register(script, "_AssignPlayerControl", wrap_AssignPlayerControl);
 
 
-	lua_State* L = luaL_newstate();
-	luaL_openlibs(L);
-	int r = luaL_dofile(L,"EmbeddingLua1.lua");
+		if (CheckLua(script, luaL_dofile(script, "Automation1.lua"))) 
+		{
+			//gets the LocalLevel function from lua script
+			lua_getglobal(script, "LoadlLevel");
+			//placeback into lua stack and index which will represents the function LocalLevel
+			if (lua_isfunction(script,-1)) 
+			{
+				lua_pushlightuserdata(script, this);//pass a pointer "this" which is the "host" parameter, in other words we passing GameWord object as a host parameter
+				lua_pushnumber(script, 1);//inserts the level with value 1
+				//then we call the LoadLevel function using lua_pcall
+				if(CheckLua(script,lua_pcall(script,2,1,0)))
+				{
+					return true;
+				}
 
-	if (VerifyLua(L, r)) {
-
-		std::cout << "1" << std::endl;
-
-		lua_getglobal(L,"EditTime");
-		if (lua_isfunction(L, -1)) {
-
-			std::cout << "2" << std::endl;
-			lua_pushnumber(L, t1.year);
-			lua_pushnumber(L, t1.month);
-			lua_pushnumber(L, t1.day);
-			lua_pushnumber(L, t1.hour);
-			lua_pushnumber(L, t1.minute);
-			lua_pushnumber(L, t1.second);
-
-			if (VerifyLua(L, lua_pcall(L, 6, 0, 0))) {
-		   
-			std::cout << "[C++] Inserted time data" << std::endl;	
 
 			}
 		}
+		return false;
+	}
+	//this function will actually print or draw the tiles to the screen
+	bool OnUserUpdate(float fElapsedTime) override
+	{
 
+		//Player Controlled Dynamic Object
+		if (pUnderPlayerControl != nullptr)
+		{
+			pUnderPlayerControl->vel = { 0,0 };
+			//moves the object around the screen using the keys by setting the velocity and 
+			if (GetKey(olc::W).bHeld) pUnderPlayerControl->vel += { 0, -50 };
+			if (GetKey(olc::S).bHeld) pUnderPlayerControl->vel += { 0, +50 };
+			if (GetKey(olc::A).bHeld) pUnderPlayerControl->vel += { -50, 0 };
+			if (GetKey(olc::D).bHeld) pUnderPlayerControl->vel += { +50, 0 };
+			//and updating its position accordingly
+			pUnderPlayerControl->pos += pUnderPlayerControl->vel * fElapsedTime;
+		}
+
+
+
+
+		//Draw level
+		Clear(olc::CYAN);//clean the whole screen to CYAN.
+		//Create a little 2d vector to iterate all of the tiles in the vector
+		olc::vi2d vTile = { 0,0 };
+		//used to nested for such as did in lua script
+		for (vTile.x = 0; vTile.x < vLevelSize.x; vTile.x++)
+		{
+			for (vTile.y = 0; vTile.y < vLevelSize.y; vTile.y++)
+			{
+				//extract which particular tile we're drawing in this instance
+				TileType b = vLevel[vTile.y * vLevelSize.x + vTile.x];
+				//draw it by checking 
+				switch (b)
+				{
+				case TileType::Empty:
+					std::cout << "Empty" << std::endl;
+					break;
+				case TileType::Solid:
+					std::cout << "Solid" << std::endl;
+					DrawPartialSprite(vTile * vTileSize, gfx.Sprite(), olc::vi2d(0, 0) * vTileSize, vTileSize);
+					break;
+				}
+			}
+
+		}
+
+		//Draw Dynamic Object
+		SetPixelMode(olc::Pixel::ALPHA);
+		for (const auto& dynob : vDynamicObjects)
+		{
+			switch (dynob->id)
+			{
+			case 0:
+				DrawPartialSprite(dynob->pos, gfx.Sprite(), olc::vi2d(1, 0) * vTileSize, vTileSize);
+				break;
+			case 1:
+				DrawPartialSprite(dynob->pos, gfx.Sprite(), olc::vi2d(2, 0) * vTileSize, vTileSize);
+				break;
+			case 2:
+				DrawPartialSprite(dynob->pos, gfx.Sprite(), olc::vi2d(4, 0) * vTileSize, vTileSize);
+				break;
+			}
+		}
+		SetPixelMode(olc::Pixel::NORMAL);
+
+		return true;
+	}
+
+	//Note: Lua itself cannot see this function, since this is a member of a class
+	// Because of this, we'll create a wraper function, which will be the one lua is able to see
+	// this function will be wrap_CreateLevel(luaState*L)
+	//function _CreateLevel API
+	void CreateLevel(int w, int h) 
+	{
+		vLevelSize = { w,h };//sets our level size vector
+		vLevel.clear();//clears out anything in the vector
+		vLevel.resize(w * h);//allocate enough space to store all of the elements of the tile map
+		
+	}
+
+	static int wrap_CreateLevel(lua_State* L)
+	{
+		//very basic level of error checking, making sure that will be provided three arguments on the stack
+		if (lua_gettop(L) != 3) return -1; //host, size.w and size.h
+		GameWorld* object = static_cast<GameWorld*>(lua_touserdata(L, 1));
+		//The first object provided to lua stack was the pointer "this"lua_pushlightuserdata(script, this);
+		//"this" has been transfered to lua as the "host" parameter.
+		//When _CreateLevel uses host, we send the pointer back,therefore when we extract that pointer from the lua stack
+		//Then we can cast the pointer to an GameWorld object and it will be this gameWorld object.
+		//Doubt ? If the pointer was already send before, why we need to cast it again ?
+		//Maybe because we're just sending a pointer, not being in paired with the class, or also to avoid errors
+		//static cast will allow the compiler to check that the pointer and pointee data types are compatible
+		int w = lua_tointeger(L, 2);
+		int h = lua_tointeger(L, 3);
+		object->CreateLevel(w, h);
+		return 0;//returning 0 means we will not be returning any information back to lua.
 
 	}
+
+	void SetTile(int x, int y, int Tile)
+	{
+		switch (Tile)
+		{
+		case 0:
+			vLevel[y * vLevelSize.x + x] = TileType::Empty;//index the vector then assign the value
+			break;
+		case 1:
+			vLevel[y * vLevelSize.x + x] = TileType::Solid;
+			break;
+
+		}
+	}
+
+	static int wrap_SetTile(lua_State* L) 
+	{
+		if (lua_gettop(L) != 4) return -1;
+		GameWorld* object = static_cast<GameWorld*>(lua_touserdata(L, 1));
+		//takes the other 3 arguments
+		int x = lua_tointeger(L, 2);
+		int y = lua_tointeger(L, 3);
+		int tile_id = lua_tointeger(L, 4);
+		object->SetTile(x, y, tile_id);
+		return 0;//returning 0 means we will not be returning any information back to lua.
+
+	}
+
+	std::shared_ptr<Dynamic> createDynamicObject(int type, float x, float y) 
+	{
+		//creates the dynamicObject
+		auto dynob = std::make_shared<Dynamic>();
+		dynob->id = type;
+		dynob->pos = { x, y };
+		//push_back the object in the vector to be stored
+		vDynamicObjects.push_back(dynob);
+		return dynob;
+	}
+
+	static int wrap_createDynamicObject(lua_State* L)
+	{
+		if (lua_gettop(L) != 4) return -1;
+		GameWorld* object = static_cast<GameWorld*>(lua_touserdata(L, 1));
+		int type = lua_tointeger(L, 2);
+		int x = lua_tointeger(L, 3);
+		int y = lua_tointeger(L, 4);
+		//push a ptr to lua stack
+		lua_pushlightuserdata(L, object->createDynamicObject(type, x, y).get());//.get() will access the raw pointer underneath the shared pointer
+		return 1;//returning 1 tells lua virtual machine we'll return item of data, in this case the object ptr.
+	}
+
+	void AssignPlayerControl(Dynamic* dynob)
+	{
+		//When the smart pointer lua_pushlightuserdata(L, object->createDynamicObject(type, x, y).get());, went out to lua, it is passed as a raw pointer
+		//Dynamic is smart pointer, so find corresponding smart pointer
+		//Note this can be improved
+		auto ptr = std::find_if(vDynamicObjects.begin(), vDynamicObjects.end(), [&dynob](const std::shared_ptr<Dynamic>& p) {return p.get() == dynob; });
+		//I guess, what is happening it it:
+		//First the object was passed to lua, shared_ptr was passed a raw ptr.
+		//Then we want to use the same object by giving the ownsership in this scope, so we take the object dynob, find the previous object created before passing to lua, and assign it to auto.
+		//then, we return the shared_ptr state again.
+		pUnderPlayerControl = *ptr;
+	}
+
+	static int wrap_AssignPlayerControl(lua_State* L)
+	{
+		if (lua_gettop(L) != 2) return -1;
+		GameWorld* object = static_cast<GameWorld*>(lua_touserdata(L, 1));
+		Dynamic* dynob = static_cast<Dynamic*>(lua_touserdata(L, 2));
+		object->AssignPlayerControl(dynob);
+		return 0;
+	}
+
+
+
+
+};
+
+int main() {
+//	std::cout << "Teste 1" << std::endl;
+	GameWorld	demo;
+	if (demo.Construct(512, 480, 2, 2))//Game pixel parameters, 2,2 will impact on our resolution. make a window with resolution 4320x1840
+		demo.Start();
+	return 0;
+}
+
+//**Previous class and editions**************************************************************************************
+
+// Little error checking utility function
+//bool CheckLua(lua_State* L, int r)
+//{
+//	if (r != LUA_OK)
+//	{
+//		std::string errormsg = lua_tostring(L, -1);
+//		std::cout << errormsg << std::endl;
+//		return false;
+//	}
+//	return true;
+//}
+//
+//
+//int lua_HostFunction(lua_State* L) {
+//
+//	//get the values from lua stack
+//	float a = (float)lua_tonumber(L, 1);
+//	float b = (float)lua_tonumber(L, 2);
+//	std::cout << "[C++] HostFunction(" << a << "," << b << ") called" << std::endl;
+//
+//	float result = a * b;
+//	//push back onto the lua stack the result
+//	lua_pushnumber(L, result);
+//	//cpp function returns the numbers of arguments that will be passed back to lua
+//	return 1;
+//}
+//
+//
+///*
+//int lua_HostFunction(lua_State* L)
+//{
+//	float a = (float)lua_tonumber(L, 1);
+//	float b = (float)lua_tonumber(L, 2);
+//	std::cout << "[CPP S4] HostFunction(" << a << ", " << b << ") called from Lua" << std::endl;
+//	float c = a * b;
+//	lua_pushnumber(L, c);
+//	return 1;
+//}*/
+//
+//
+////check
+//int VerifyLua(lua_State* L, int r) {
+//
+//	if (r != LUA_OK) {
+//		std::string errormsg = lua_tostring(L, -1);
+//		std::cout << errormsg << std::endl;
+//		return false;
+//	}
+//	else {
+//		return true;
+//	}
+//}
+//
+//// NOTE !!!
+//// YOU WILL NEED THE "EmbeddingLua1.lua" FILE FROM GITHUB REPO
+//
+//
+//int main()
+//{
+//
+//	struct Time {
+//		int year = 1997;
+//		int day = 12;
+//		int month = 02;
+//		int hour = 14;
+//		int minute = 43;
+//		int second = 58;
+//	};
+//
+//	Time t1;
+//
+//	std::cout << t1.day << std::endl;
+//	std::cout << "testeMR" << std::endl;
+//	std::cout << "testeMR2" << std::endl;
+//
+//
+//	lua_State* L = luaL_newstate();
+//	luaL_openlibs(L);
+//	int r = luaL_dofile(L,"EmbeddingLua1.lua");
+//
+//	if (VerifyLua(L, r)) {
+//
+//		std::cout << "1" << std::endl;
+//
+//		lua_getglobal(L,"EditTime");
+//		if (lua_isfunction(L, -1)) {
+//
+//			std::cout << "2" << std::endl;
+//			lua_pushnumber(L, t1.year);
+//			lua_pushnumber(L, t1.month);
+//			lua_pushnumber(L, t1.day);
+//			lua_pushnumber(L, t1.hour);
+//			lua_pushnumber(L, t1.minute);
+//			lua_pushnumber(L, t1.second);
+//
+//			if (VerifyLua(L, lua_pcall(L, 6, 0, 0))) {
+//		   
+//			std::cout << "[C++] Inserted time data" << std::endl;	
+//
+//			}
+//		}
+//
+//
+//	}
 	
 
 //-----------------------------DAY 12/02/2022-----------------------------------------------------
@@ -365,4 +635,4 @@ int main()
 
 		
 	}*/
-}
+//}
